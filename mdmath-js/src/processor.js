@@ -6,6 +6,7 @@ import { sendNotification, saveFile } from './debug.js';
 import { sha256Hash } from './util.js';
 import { randomBytes } from 'node:crypto';
 import { onExit } from './onexit.js';
+import { load } from 'cheerio';
 
 // To prevent conflicts with other instances
 const DIRECTORY_SUFFIX = randomBytes(3).toString('hex');
@@ -86,6 +87,21 @@ function parseViewbox(svgString) {
     return { minX, minY, width, height };
 }
 
+// Versions of Mathjax over 4.0 include the contents of the equation inside the
+// resulting SVG inside attributes of tags named "g", so escaping troublesome
+// chars is necessary
+
+function replaceInvalidCharacters(svg) {
+    const svgParser = load(svg, { xml: true });
+
+    svgParser('g[data-latex]').each((_, el) => {
+        const latex = svgParser(el).attr('data-latex');
+        svgParser(el).attr('data-latex', latex.replace(/</g, '&lt;'));
+    });
+
+    return svgParser.xml()
+}
+
 /**
   * @param {string} identifier
   * @param {string} equation
@@ -100,13 +116,23 @@ async function processEquation(identifier, equation, cWidth, cHeight, width, hei
         return write(identifier, equationObj.width, equationObj.height, equationObj.filename);
     }
 
+
     let {svg, error} = await equationToSVG(equation);
     if (!svg)
         return writeError(identifier, error)
 
+    // I wanna set here a checkup to see if the equation contains any "<"
+    // character so the resulting SVG can be processed to escape those
+    // characters and make it work with the current version of mathjax (4.0.0)
+
     svg = svg
         .replace(/currentColor/g, color)
         .replace(/style="[^"]+"/, '')
+
+
+    if (/</.test(equation)) {
+        svg = replaceInvalidCharacters(svg);
+    }
 
     const isDynamic = !!(flags & 1);
 
