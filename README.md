@@ -1,3 +1,7 @@
+---
+language: en
+date: 2025-11-09
+---
 # ✨ mdmath.nvim
 
 A Markdown equation previewer inside Neovim, using Kitty Graphics Protocol.
@@ -99,3 +103,37 @@ The plugin is currently at alpha, many features are planned for the next version
   - [ ] Refactoring: LuaCATS annotations
   - [ ] Documentation
   - [ ] `:checkhealth`
+
+
+## Things that this fork fixes
+
+- Roots: When it came to long index roots like for example:
+
+$$
+\sqrt[3 \cdot 4 \cdot \cdot 4 \cdot 5]{723235543423 + 5}
+$$
+
+The rendering result would look like this:
+
+![Wrongly Rendered Root](./images/wrongly-rendered-root.png) 
+
+The problem was fixed by upgrading the pluigin's Mathjax's version to 4.0.0, but
+that came with its own set of problems that are mentioned after this section
+
+
+- Problems with lesser than symbol (`>`)
+
+Because the processor uses a conversion process that goes:
+
+LaTeX Code -> SVG -> PNG -> PNG's content as kitty's rendering protocol escape sequence
+
+When converting to SVG with Mathjax version 4.0.0, the ">" would cause fatal
+errors in the resulting SVG that would stop the process due to this new version
+of Mathjax would put the LaTeX text inside the information, and this character
+would make the SVG unusable for rsvg-convert to make the conversion to PNG.
+
+The solution was using Cheerio to query the internal SVG fields that'd contain
+this symbol and replace it for valid SVG versions that wouldn't cause problems
+for the SVG -> PNG process, for example: `>` would be converted to `&lt`.
+
+
